@@ -198,6 +198,57 @@ class RestEndpointTransfer extends RestEndpoint
                 return $ret;
             }
         }
+
+        if( $id=='fileidsextended' && array_key_exists('token', $_GET)) {
+            $token = $_GET['token'];
+            if (!Utilities::isValidUID($token)) {
+                throw new RestBadParameterException('token');
+            }
+            // Need to be authenticated
+            if (!Auth::isAuthenticated()) {
+                throw new RestAuthenticationRequiredException();
+            }
+            
+            $recipient = Recipient::fromToken($token);
+            if ($recipient->transfer) {
+                $transfer = $recipient->transfer;
+                $files = $recipient->transfer->files;
+                $ret = array();
+                foreach ($files as $file) {
+                    $obj = array( 'id' => $file->id
+                                , 'encrypted' => isset($transfer->options['encryption'])?$transfer->options['encryption']:'false'
+                                , 'mime' =>  $file->mime_type
+                                , 'name' =>  $file->path
+                                , 'size' => $file->size
+                        
+                                , 'encrypted-size' => $file->encrypted_size
+                                , 'key-version'    => $transfer->key_version
+                                , 'key-salt' => $transfer->salt
+                                , 'password-version' => $transfer->password_version
+                                , 'password-encoding' => $transfer->password_encoding_string
+                                , 'password-hash-iterations' => $transfer->password_hash_iterations
+                                , 'client-entropy' => $transfer->client_entropy
+
+                                // underscore versions of the same
+                                , 'encrypted_size' => $file->encrypted_size
+                                , 'key_version'    => $transfer->key_version
+                                , 'key_salt' => $transfer->salt
+                                , 'password_version' => $transfer->password_version
+                                , 'password_encoding' => $transfer->password_encoding_string
+                                , 'password_hash_iterations' => $transfer->password_hash_iterations
+                                , 'client_entropy' => $transfer->client_entropy
+                        
+                                , 'fileiv' => $file->iv
+                                , 'fileaead' => $file->aead
+                                , 'transferid' => $transfer->id
+                    );
+                    
+                    array_push($ret,$obj);
+                }
+                return $ret;
+            }
+        }
+        
         
         // If key was provided we validate it and return the transfer (guest restart)
         if (is_numeric($id) && array_key_exists('key', $_GET) && $_GET['key']) {
@@ -510,9 +561,12 @@ class RestEndpointTransfer extends RestEndpoint
             
             foreach ($allOptions as $name => $dfn) {
                 if (in_array($name, $allowed_options)) {
-                    if (method_exists($data->options, 'exists')) {
-                        if ($data->options->exists($name)) {
-                            $options[$name] = $data->options->$name;
+                    // check if options is object
+                    if (is_object( $data->options) ) {
+                        if (method_exists($data->options, 'exists')) {
+                            if ($data->options->exists($name)) {
+                                $options[$name] = $data->options->$name;
+                            }
                         }
                     } else {
                         if (array_search($name, $data->options) !== false) {
@@ -523,13 +577,18 @@ class RestEndpointTransfer extends RestEndpoint
             }
             $options['encryption'] = $data->encryption;
 
+            $data->encryption_client_entropy = filter_var( $data->encryption_client_entropy,
+                                                           FILTER_VALIDATE_REGEXP,
+                                                           ["options" => ["regexp" => "|^[-A-Za-z0-9+/]*={0,3}$|" ]] );
+            
+            
             // check if encryption is mandatory but the user tried to disable it
             if( Principal::isEncryptionMandatory()) {
                 if( !$data->encryption ) {
                     throw new TransferMustBeEncryptedException();
                 }
             }
-
+            
             if( strtolower(Config::get('storage_type')) == 'clouds3' ) {
                 $options = StorageCloudS3::augmentTransferOptions( $options );                
             }
@@ -745,7 +804,10 @@ class RestEndpointTransfer extends RestEndpoint
                 $filedata->mime_type = Utilities::valuePassesConfigRegexOrDefault( $filedata->mime_type,
                                                                                    'mime_type_regex',
                                                                                    Config::get('mime_type_default'));
-                
+
+                $filedata->iv = filter_var( $filedata->iv,
+                                            FILTER_VALIDATE_REGEXP,
+                                            ["options" => ["regexp" => "|^[-A-Za-z0-9+/]*={0,3}$|" ]] );                
 
                 $file = $transfer->addFile($filedata->name, $filedata->size, $filedata->mime_type,
                                            $filedata->iv, $filedata->aead );

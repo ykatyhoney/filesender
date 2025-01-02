@@ -71,6 +71,27 @@ function useWebNotifications()
 }
 
 
+function getOption( n )
+{
+    var ret = (n in filesender.ui.nodes.options) ? filesender.ui.nodes.options[n].is(':checked') : false;
+    return ret;
+}
+
+
+function getGuestOption( n )
+{
+    var auth = $('body').attr('data-auth-type');
+    if(auth == 'guest') {
+        return filesender.ui.guest_options[n];
+    }
+    return false;
+}
+
+
+
+
+
+
 /**
  * apply a 'bad' class to the obj if b==true
  * the useExplicitGoodClass can be set to true and a 'good' css class 
@@ -191,7 +212,8 @@ filesender.ui.elements.preventEmpty = function(el) {
 // Manage files
 filesender.ui.files = {
     invalidFiles: [],
-
+    duplicateFiles: [],
+    
     // Sort error cases to the top
     sortErrorLinesToTop: function() {
         var $selector = $("#fileslist");
@@ -274,19 +296,42 @@ filesender.ui.files = {
                     var el = $(this).parent();
                     var cid = el.attr('data-cid');
                     var name = el.attr('data-name');
-                    
+                    var iidx = -1;
+
                     var total_size = 0;
                     for(var j=0; j<filesender.ui.transfer.files.length; j++)
                         total_size += filesender.ui.transfer.files[j].size;
-                    
-                    if(cid) filesender.ui.transfer.removeFile(cid);
-                    
-                    $(this).parent().remove();
+
+                    iidx = filesender.ui.files.duplicateFiles.indexOf(name);
+                    if (iidx != -1) {
+                        var dups = filesender.ui.nodes.files.list.find(".file[data-name='" + name + "']");
+                        dups.each( function() {
+                            var e = $(this);
+                            if( e.hasClass('duplicate_file_entry')) {
+                                e.remove();
+                                
+                            }
+                        });
+                        while( iidx != -1 ) {
+                            filesender.ui.files.duplicateFiles.splice(iidx, 1);
+                            iidx = filesender.ui.files.duplicateFiles.indexOf(name);
+                        }
+                        iidx = filesender.ui.files.invalidFiles.indexOf(name);
+                        while( iidx != -1 ) {
+                            filesender.ui.files.invalidFiles.splice(iidx, 1);
+                            iidx = filesender.ui.files.invalidFiles.indexOf(name);
+                        }
+                        filesender.ui.notify('success', lang.tr('files_removed_from_upload'));
+                        
+                    } else {
+                        if(cid) filesender.ui.transfer.removeFile(cid);
+                        $(this).parent().remove();
+                    }
                     
                     if(!filesender.ui.nodes.files.list.find('div').length)
                         filesender.ui.nodes.files.clear.button('disable');
                     
-                    var iidx = filesender.ui.files.invalidFiles.indexOf(name);
+                    iidx = filesender.ui.files.invalidFiles.indexOf(name);
                     if (iidx === -1){
                         var size = 0;
                         for(var j=0; j<filesender.ui.transfer.files.length; j++)
@@ -303,6 +348,12 @@ filesender.ui.files = {
                 
                 var added_cid = filesender.ui.transfer.addFile(filepath, fileblob, function(error) {
                     var tt = 1;
+                    if(error.message && error.message == 'duplicate_file' ) {
+                        filesender.ui.files.duplicateFiles.push(error.details.filename);
+                        node.attr('data-cid-dup', added_cid);
+                        node.addClass('duplicate_file_entry');
+                    }
+                    
                     if(error.details && error.details.filename) filesender.ui.files.invalidFiles.push(error.details.filename);
                     node.addClass('invalid');
                     node.addClass(error.message);
@@ -1067,6 +1118,7 @@ filesender.ui.cancelAutomaticResume = function() {
 
 filesender.ui.startUpload = function() {
 
+    window.filesender.ui.uploading = true;
     this.transfer.encryption = filesender.ui.nodes.encryption.toggle.is(':checked'); 
     this.transfer.encryption_password = filesender.ui.nodes.encryption.password.val();
     this.transfer.disable_terasender = filesender.ui.nodes.disable_terasender.is(':checked');
@@ -1147,6 +1199,7 @@ filesender.ui.startUpload = function() {
     
     this.transfer.oncomplete = function(time) {
 
+        window.filesender.ui.uploading = false;       
         filesender.ui.files.clear_crust_meter_all();
         window.filesender.pbkdf2dialog.ensure_onPBKDF2AllEnded();
 
@@ -1411,6 +1464,9 @@ $(function() {
 
     // start out asking user for a password
     filesender.ui.transfer.encryption_password_version = crypto.crypto_password_version_constants.v2018_text_password;
+
+    // initial value
+    filesender.ui.guest_options = [];
     
     // Register frequently used nodes
     filesender.ui.nodes = {
@@ -1450,7 +1506,7 @@ $(function() {
         message_contains_password_warning: form.find('#password_can_not_be_part_of_message_warning'),
         message_contains_password_error:   form.find('#password_can_not_be_part_of_message_error'),
         guest_token: form.find('input[type="hidden"][name="guest_token"]'),
-        lang: form.find('input[name="lang"]'),
+        lang: form.find('#lang'),
         aup: form.find('input[name="aup"]'),
         expires: form.find('input[name="expires"]'),
         options: {
@@ -1824,7 +1880,18 @@ $(function() {
         return false;
     });
 
-    
+
+    function startUpload()
+    {
+        filesender.ui.switchToUloadingPageConfiguration();
+        filesender.ui.startUpload();
+        filesender.ui.nodes.buttons.start.addClass('not_displayed');
+        if(filesender.supports.reader) {
+            filesender.ui.nodes.buttons.pause.removeClass('not_displayed');
+            filesender.ui.nodes.buttons.reconnect_and_continue.removeClass('not_displayed');
+        }
+        filesender.ui.nodes.buttons.stop.removeClass('not_displayed');
+    }
     
     // Bind buttons
     filesender.ui.nodes.buttons.start.on('click', function() {
@@ -1833,14 +1900,28 @@ $(function() {
         
         if(filesender.ui.transfer.status == 'new' && $(this).filter('[aria-disabled="false"]')) {
 
-            filesender.ui.switchToUloadingPageConfiguration();
-            filesender.ui.startUpload();
-            filesender.ui.nodes.buttons.start.addClass('not_displayed');
-            if(filesender.supports.reader) {
-                filesender.ui.nodes.buttons.pause.removeClass('not_displayed');
-                filesender.ui.nodes.buttons.reconnect_and_continue.removeClass('not_displayed');
+            var auth = $('body').attr('data-auth-type');
+            if(auth == 'guest') {
+
+                // confirm that the upload is only intended to the voucher issuer.
+                if( getOption( 'add_me_to_recipients' )
+                    && !getGuestOption( 'can_only_send_to_me' )
+                    && !filesender.ui.transfer.recipients.length )
+                {
+                    filesender.ui.confirm(lang.tr('confirm_upload_add_to_recipients_with_no_explicit_address'),
+                                          function() { // ok
+                                              startUpload();
+                                          },
+                                          function() { // cancel
+                                          });
+                    
+                    // dailog will start the upload if the user confirms the action
+                    // so we fall through here.
+                    return false;
+                }
             }
-            filesender.ui.nodes.buttons.stop.removeClass('not_displayed');
+
+            startUpload();
         }
         return false;
     }).button({disabled: true});
@@ -1964,6 +2045,13 @@ $(function() {
     // Check if there is a failed transfer in tracker and if it still exists
     var failed = filesender.ui.transfer.isThereFailedInRestartTracker();
     var auth = $('body').attr('data-auth-type');
+
+    if(auth == 'guest') {
+        var goelement = $('#guest_options')[0];
+        const go = JSON.parse( goelement.value );
+        filesender.ui.guest_options = go;
+    }
+
     
     if(auth == 'guest') {
         var transfer_options = JSON.parse(form.find('input[id="guest_transfer_options"]').val());

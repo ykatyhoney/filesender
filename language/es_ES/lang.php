@@ -159,7 +159,7 @@ $lang['disable_terasender'] = 'Desactivar la carga paralela (marque si tiene una
 $lang['does_not_expire'] = 'Sin caducidad';
 $lang['done'] = 'Listo';
 $lang['done_uploading'] = 'Carga finalizada';
-$lang['done_uploading_guest'] = 'Gracias por usar {cfg:site_name}. Si tu invitado está habilitado para varias subidas, puedes usar tu enlace de subida de nuevo para enviar otros archivos.';
+$lang['done_uploading_guest'] = 'Gracias por usar {cfg:site_name}. Si tu invitado está habilitado para varias cargas, puedes usar el enlace de nuevo para enviar otros archivos.';
 $lang['done_uploading_redirect'] = 'Su carga se ha completado y se le redirige a <a href="{url}"> {url} </a>. La redirección tarda más de lo esperado.';
 $lang['download'] = 'Descargar';
 $lang['download_bad_files_ids'] = 'Identificador (IDs) de descarga no válido';
@@ -428,6 +428,7 @@ $lang['report_event_download_started'] = '{author.identity} comenzó a descargar
 $lang['report_event_file_uploaded'] = '{file.path} ({size:file.size}) cargado en {time:time_taken}';
 $lang['report_event_transfer_available'] = 'Carga disponible. Tiempo empleado en la carga: {time:time_taken}';
 $lang['report_event_transfer_closed'] = 'La carga se cerró bajo petición';
+$lang['report_event_transfer_decrypt_failed'] = 'fallo al descifrar';
 $lang['report_event_transfer_deleted'] = 'Se han borrado los datos de la carga';
 $lang['report_event_transfer_expired'] = 'Carga caducada';
 $lang['report_event_transfer_sent'] = 'Enlace de descarga enviado a los destinatarios';
