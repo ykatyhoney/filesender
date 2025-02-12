@@ -31,13 +31,11 @@ you can report issues with and update the documentation.
 
 ### Dependencies
 
-* Apache (or nginx) and PHP version 7.3 or later.
+
+* Apache (or nginx) and PHP version 8.2 or later.
 * A PostgreSQL or MariaDB database (10.0 or above, 10.2 or later recommended).
 * A big filesystem (or cloud backed).
-* [SimpleSamlPhp](https://simplesamlphp.org/download/) 1.19.7 or
-  newer. There is some support for the 2.x series of SimpleSamlPhp.
-  You may need to modify some files in your SimpleSamlPhp for this to
-  work, see [issue 1467](https://github.com/filesender/filesender/issues/1467).
+* [SimpleSamlPhp](https://simplesamlphp.org/download/) 2.2 or newer. 
 
 Note that older versions of PHP may work, but they are not supported
 by the PHP project so it is recommended to avoid them in production. Likewise,
@@ -56,13 +54,13 @@ for the Web server setup, one for each supported server.
 On RedHat/CentOS, run:
 
 ```
-dnf install -y httpd mod_ssl php php-mbstring php-xml php-json
+dnf install -y httpd mod_ssl php php-mbstring php-xml php-json php-intl
 ```
 
 On Debian, run:
 
 ```
-apt-get install -y apache2 php php-mbstring php-xml php-json libapache2-mod-php
+apt-get install -y apache2 libapache2-mod-php php php-mbstring php-xml php-json php-intl
 ```
 
 # Step 1-nginx - Install NGINX and PHP
@@ -94,8 +92,8 @@ see something like the following:
 # ls -l /opt/filesender
 total 8
 drwxrwxr-x. 21 root root 4096 Jun  6 15:28 filesender
-lrwxrwxrwx.  1 root root   20 Jun  6 15:41 simplesaml -> simplesamlphp-1.19.7
-drwxr-xr-x. 23 root root 4096 Mar  3 01:04 simplesamlphp-1.19.7
+lrwxrwxrwx.  1 root root   20 Jun  6 15:41 simplesaml -> simplesamlphp-2.2.3
+drwxr-xr-x. 23 root root 4096 Mar  3 01:04 simplesamlphp-2.2.3
 
 # ls -l /opt/filesender/filesender/
 total 160
@@ -120,6 +118,8 @@ mkdir -p /opt/filesender
 cd       /opt/filesender
 tar xzvf /tmp/filesender-2.0.tar.gz
 mv filesender-filesender-2.0  filesender
+cd filesender
+composer install --no-dev
 ```
 
 
@@ -166,6 +166,9 @@ git clone --depth 1 --branch master https://github.com/filesender/filesender.git
 
 cd /opt/filesender/filesender
 git checkout master
+
+composer install --no-dev
+
 ```
 
 You can bring down new releases to an existing git repository and then
@@ -242,7 +245,7 @@ authentication for development and testing. When you move to a
 production service you probably want to change that to only support
 authentication sources of your choice.
 
-All versions of FileSender currently use the SimpleSAMLphp 1.x series. For example, version 1.19.7 of SimpleSAMLphp.
+All versions of FileSender currently use the SimpleSAMLphp 2.x series. For example, version 2.2.3 of SimpleSAMLphp.
 [Download SimpleSAMLphp](https://simplesamlphp.org/download/). Other
 [(later or older) versions](https://github.com/simplesamlphp/simplesamlphp/releases) will
 probably work. The continuous integration in FileSender has an
@@ -257,17 +260,17 @@ Extract SimpleSAMLphp in a suitable directory and create symlink:
 ```
 mkdir -p ~/src
 cd ~/src
-wget https://github.com/simplesamlphp/simplesamlphp/releases/download/v1.19.7/simplesamlphp-1.19.7.tar.gz
+wget https://github.com/simplesamlphp/simplesamlphp/releases/download/v2.2.3/simplesamlphp-2.2.3-full.tar.gz
 
 php /opt/filesender/filesender/scripts/install/simplesamlphp-extract-sha256-from-release-notes.php https://github.com/simplesamlphp/simplesamlphp/releases/tag/v1.19.7 >| checklist
-echo " simplesamlphp-1.19.7.tar.gz" >> checklist
+echo " simplesamlphp-2.2.3-full.tar.gz" >> checklist
 sha256sum --check checklist
- simplesamlphp-1.19.7.tar.gz: OK
+ simplesamlphp-2.2.3-full.tar.gz: OK
 
 mkdir -p /opt/filesender
 cd /opt/filesender
-tar xvzf ~/src/simplesamlphp-1.19.7.tar.gz
-ln -s simplesamlphp-1.19.7 simplesaml
+tar xvzf ~/src/simplesamlphp-2.2.3-full.tar.gz
+ln -s simplesamlphp-2.2.3 simplesaml
 
 
 ```
@@ -277,9 +280,15 @@ ln -s simplesamlphp-1.19.7 simplesaml
 Copy standard configuration files to the right places:
 
 ```
-cd /opt/filesender/simplesaml
-cp -r config-templates/*.php config/
-cp -r metadata-templates/*.php metadata/
+cd /opt/filesender/simplesaml/config
+mv acl.php.dist acl.php
+mv authsources.php.dist authsources.php
+mv config.php.dist config.php
+
+cd /opt/filesender/simplesaml/config
+mv saml20-idp-hosted.php.dist saml20-idp-hosted.php
+mv saml20-idp-remote.php.dist saml20-idp-remote.php
+mv saml20-sp-remote.php.dist saml20-sp-remote.php
 ```
 
 There are some thoughts on updates to your SimpleSAMLphp configuration
@@ -330,30 +339,6 @@ sed -i -e "s@'auth.adminpassword' => '123'@'auth.adminpassword' => '$HASH'@g" co
 
 ```
 
-The below commands will remove some possible functionality such as the
-admin interface and some pages in the core module from being
-available. Note that the authenticate.php page is there to help verify
-authentication and does not seem to be used in the normal flow of
-login and logout. The above admin.protect config settings should also
-remove these pages from regular user access.
-
-```
-cd www
-rm -f resources/jquery-1.8.js
-rm -f resources/jquery-ui-1.8.js
-rm -rf admin
-cd ..
-
-cd modules/core/www
-rm -f frontpage_auth.php
-rm -f frontpage_config.php
-rm -f frontpage_federation.php
-rm -f frontpage_welcome.php
-rm -f authenticate.php
-rm -f show_metadata.php
-rm -f login-admin.php
-
-```
 
 To tailor your [SimpleSAMLphp](https://simplesamlphp.org/) installation
 to match your local site's needs please check the SimpleSAMLphp [installation and
@@ -365,16 +350,6 @@ Manual for details.
 
 * **NOTE**: It's outside the scope of this document to explain how to configure an authentication backend. The software has built-in support for [SAML](https://simplesamlphp.org/docs/stable/ldap:ldap), [LDAP](https://simplesamlphp.org/docs/stable/ldap:ldap), [Radius](https://simplesamlphp.org/docs/stable/radius:radius) and [many more](https://simplesamlphp.org/docs/stable/simplesamlphp-idp#section_2).
 
-The below are some URLs that will be disabled by the above configuration.
-You might like to load them and see that you are happy with the results.
-
-```
-https://.../simplesaml/module.php/sanitycheck/index.php
-https://.../simplesaml/admin/phpinfo.php
-https://.../simplesaml/module.php/core/frontpage_config.php
-https://.../simplesaml/module.php/core/authenticate.php
-https://.../simplesaml/module.php/saml/sp/metadata.php/default-sp?output=xhtml
-```
 
 The default redirect for https://.../simplesaml/ will be to
 https://.../simplesaml/module.php/core/frontpage_welcome.php so you might like to

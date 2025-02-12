@@ -37,6 +37,7 @@ A note about colours;
 * [download_verification_code_valid_duration](#download_verification_code_valid_duration)
 * [download_verification_code_random_bytes_used](#download_verification_code_random_bytes_used)
 * [download_show_download_links](#download_show_download_links)
+* [disclose](#disclose)
 
 
 ## Security settings
@@ -67,6 +68,11 @@ A note about colours;
 * [storage_filesystem_tree_deletion_command](#storage_filesystem_tree_deletion_command)
 * [storage_usage_warning](#storage_usage_warning)
 * [storage_filesystem_hashing](#storage_filesystem_hashing)
+* [storage_filesystem_per_day_buckets](#storage_filesystem_per_day_buckets)
+* [storage_filesystem_per_hour_buckets](#storage_filesystem_per_hour_buckets)
+* [storage_filesystem_per_day_max_age_to_create_directory](#storage_filesystem_per_day_min_age_to_create_directory)
+* [storage_filesystem_per_day_min_days_to_clean_empty_directories](#storage_filesystem_per_day_min_days_to_clean_empty_directories)
+* [storage_filesystem_per_day_max_days_to_clean_empty_directories](#storage_filesystem_per_day_max_days_to_clean_empty_directories)
 * [storage_filesystem_ignore_disk_full_check](#storage_filesystem_ignore_disk_full_check)
 * [storage_filesystem_external_script](#storage_filesystem_external_script)
 * [cloud_s3_region](#cloud_s3_region)
@@ -78,6 +84,8 @@ A note about colours;
 * [cloud_s3_bucket](#cloud_s3_bucket)
 * [cloud_s3_use_daily_bucket](#cloud_s3_use_daily_bucket)
 * [cloud_s3_bucket_prefix](#cloud_s3_bucket_prefix)
+* [cloud_s3_bulk_delete](#cloud_s3_bulk_delete)
+* [cloud_s3_bulk_size](#cloud_s3_bulk_size)
 
 ## Shredding
 
@@ -117,6 +125,7 @@ A note about colours;
 * [email_send_with_minus_r_option](#email_send_with_minus_r_option)
 * [relay_unknown_feedbacks](#relay_unknown_feedbacks)
 * [translatable_emails_lifetime](#translatable_emails_lifetime)
+* [template_email_images](#template_email_images)
 
 ## General UI
 
@@ -142,6 +151,7 @@ A note about colours;
 * [can_view_aggregate_statistics](#can_view_aggregate_statistics)
 * [auth_sp_saml_can_view_statistics_entitlement](#auth_sp_saml_can_view_statistics_entitlement)
 * [auth_sp_saml_can_view_aggregate_statistics_entitlement](#auth_sp_saml_can_view_aggregate_statistics_entitlement)
+* [read_only_mode](#read_only_mode)
 
 
 
@@ -195,11 +205,13 @@ A note about colours;
 * [recipient_reminder_limit](#recipient_reminder_limit)
 * [log_authenticated_user_download_by_ensure_user_as_recipient](#log_authenticated_user_download_by_ensure_user_as_recipient)
 * [transfer_automatic_reminder](#transfer_automatic_reminder)
+* [transfers_table_show_admin_full_path_to_each_file](#transfers_table_show_admin_full_path_to_each_file)
 
 ## Graphs
 
 * [upload_graph_bulk_display](#upload_graph_bulk_display)
 * [upload_graph_bulk_min_file_size_to_consider](#upload_graph_bulk_min_file_size_to_consider)
+* [upload_graph_use_cache_table](#upload_graph_use_cache_table)
 
 ## TeraSender (high speed upload module)
 
@@ -248,7 +260,8 @@ A note about colours;
 	* [auth_sp_saml_uid_attribute](#auth_sp_saml_uid_attribute)
 	* [auth_sp_saml_entitlement_attribute](#auth_sp_saml_entitlement_attribute)
 	* [auth_sp_saml_admin_entitlement](#auth_sp_saml_admin_entitlement)
-        * [using_local_saml_dbauth](#using_local_saml_dbauth)
+    * [using_local_saml_dbauth](#using_local_saml_dbauth)
+    * [auth_warn_session_expired](#auth_warn_session_expired)
 * __Shibboleth__
 	* [auth_sp_shibboleth_uid_attribute](#auth_sp_shibboleth_uid_attribute)
 	* [auth_sp_shibboleth_email_attribute](#auth_sp_shibboleth_email_attribute)
@@ -280,6 +293,7 @@ A note about colours;
 * [logs_limit_messages_from_same_ip_address](#logs_limit_messages_from_same_ip_address)
 * [trackingevents_lifetime](#trackingevents_lifetime)
 * [client_ip_key](#client_ip_key)
+* [exception_skip_logging](#exception_skip_logging)
 
 ## Webservices API
 
@@ -869,6 +883,60 @@ $config['valid_filename_regex'] = '^['."\u{2010}-\u{2027}\u{2030}-\u{205F}\u{207
 * __comment:__ basically integer. use fileUID (which is used to create name on hard drive) + as many characters as the hashing value (if you set hashing to 2 you take the 2 first letters of the fileUID (big random string) and use these two characters to create a directory structure under the storage path. This avoids having all files in the same directory. If you set this to 1 you have 16 possible different values for the directory structure under the storage root. You'll have 16 folders under your storage root under which you'll have the files. This allows you to spread files over different file systems / hard drives. You can aggregate storage space without using things like LVM. If you set this to two you have 2 levels of subdirectories. For directory naming: first level, directory names has one letter. Second level has two: letter from upper level + own level. Temporary chunks are stored directly in the final file. No temp folder (!!) Benchmarking between writing small file in potentially huge directory and opening big file and seeking in it was negligible. Can just open final file, seek to location of chunk offset and write data. Removes need to move file in the end.  It can also be "callable". We call the function giving it the file object which hold all properties of the file. Reference to the transfer as well. The function has to return a path under the storage root. This is a path related to storage root. For example: if you want to store small files in a small file directory and big files in big directory. F.ex. if file->size < 100 MB store on fast small disk, if > 100 MB store on big slow disk. Can also be used for functions to store new files on new storage while the existing files remain on existing storage. Note: we need contributions for useful functions here :)
 
 
+### storage_filesystem_per_day_buckets
+
+* __description:__ Store files in a subdirectory based on the day they were created.
+* __mandatory:__ no
+* __type:__ **bool** 
+* __default:__ false
+* __available:__ since version 2.45
+* __comment:__ This requires version 7 UUIDs to be in use. The timestamp from the v7 uuid is taken and the seconds since midnight are removed and that is used to create a subdirectory for the stored files. See also storage_filesystem_per_hour_buckets. Note that this works with storage_filesystem_per_hour_buckets, if both are enabled then first a daily directory is made and then an hourly directory is created in the day directory and the files are stored in the hourly subdirectory. This will allow the number of entries in a directory to be controlled by a system administrator and the use of v7 uuid will also permit the kernel filesystem to better index entry lookup.
+
+
+
+### storage_filesystem_per_hour_buckets
+
+* __description:__ Store files in a subdirectory based on the hour they were created.
+* __mandatory:__ no
+* __type:__ **bool** 
+* __default:__ false
+* __available:__ since version 2.45
+* __comment:__ This requires version 7 UUIDs to be in use. The timestamp from the v7 uuid is taken and the seconds since the start of the hour are removed and that is used to create a subdirectory for the stored files. See also storage_filesystem_per_day_buckets for an overview of this feature.
+
+### storage_filesystem_per_day_max_age_to_create_directory
+
+* __description:__ Mostly internal use. Bucket directories are created automatically. This is the maximum number of days ago to create these subdirectory buckets.
+* __mandatory:__ no
+* __type:__ int
+* __default:__ 7
+* __available:__ since version 2.47
+* __comment:__ This is mostly for internal use and likely fine to leave at default. This prevents bucket subdirectories from being recreated if very old files are listed where the file content is already deleted by the cron job.
+
+### storage_filesystem_per_day_min_days_to_clean_empty_directories
+
+* __description:__ Mostly internal use. How many days ago the cron job starts to consider when looking for empty bucket directories to delete
+* __mandatory:__ no
+* __type:__ int
+* __default:__ -1 which means this is set to max_transfer_days_valid
+* __available:__ since version 2.47
+* __comment:__ This is mostly for internal use and likely fine to leave at default. 
+
+
+### storage_filesystem_per_day_max_days_to_clean_empty_directories
+
+* __description:__ Mostly internal use. How far back from storage_filesystem_per_day_min_days_to_clean_empty_directories to consider when trying to delete empty bucket directories
+* __mandatory:__ no
+* __type:__ int
+* __default:__ 150
+* __available:__ since version 2.47
+* __comment:__ This is mostly for internal use and likely fine to leave at default. 
+
+
+
+
+
+
+
 ### storage_filesystem_ignore_disk_full_check
 
 * __description:__ Ignore tests to see if new files will fit onto the filesystem.
@@ -977,6 +1045,26 @@ php scripts/task/S3bucketmaintenance.php --verbose
 * __comment:__ If cloud_s3_use_daily_bucket has been set, you can define the prefix for daily buckets with
 this option. Daily bucket names are formed by concatenating cloud_s3_bucket_prefix + YYYY-MM-DD,
 for example a prefix of "Test-" could create bucket "Test-2023-04-30". An empty prefix would create "2023-04-30".
+
+### cloud_s3_bulk_delete
+
+* __description:__ Toggle bulk delete or serial chunk delete
+* __mandatory:__ no.
+* __type:__ bool
+* __default:__ false
+* __available:__ since version 2.45
+* __comment:__ When deleting a file, this chooses between deleting one chunk per request, or sending a bulk request
+deleting up to [cloud_s3_bulk_size](#cloud_s3_bulk_size) chunks per request.
+
+### cloud_s3_bulk_size
+
+* __description:__ Maximum number of chunks to delete per bulk delete request
+* __mandatory:__ no.
+* __type:__ integer
+* __default:__ 1000
+* __available:__ since version 2.45
+* __comment:__ When [cloud_s3_bulk_delete](#cloud_s3_bulk_delete) is true, this is the maximum size of the delete request.
+Default value to maintain AWS S3 compatibility is 1000. Other storage platforms may use different defaults. OpenStack Swift defaults to 10000, for instance
 
 
 ---
@@ -1295,6 +1383,29 @@ User language detection is done in the following order:
 * __available:__ since before version 2.30
 
 
+### template_email_images
+
+* __description:__ A list of CID to image paths for use in email attachments from the mail translation files. Note that these will be relative to the www/images directory. The image *MUST* be contained in the www/images directory or it will be logged and ignored. To use these images place something like <img src="cid:mylogo"/> into your files_downloaded.mail.php. Note that the cid can only contain the lower case characters 'a' through 'z' and the digits '0' through '9'. To aid in matching the cid is only sought on img elements and the src attribute *MUST* the the first attribute with only a single space between the img and src. If you wish to have other attributes on the img tag please but those after the src attribute. Attempts to use cid values outside of this scope will be silently ignored. Attempts to reference a CID that is not set in this configuration variable will be shown as an error in your logs and silently ignored. If the path to an image does not exist you will see an error in your logs and that cid will be silently ignored. If an image file is not readable you will see an error in your logs and it will be silently ignored. Attempts to access images outside of www/images will be logged and silently ignored.
+* __mandatory:__ no
+* __type:__ array
+* __default:__ null
+* __available:__ since version 2.50
+* __Examples:__
+$config['template_email_images'] = [
+    'mylogo' => 'mylogo.png',
+    'footer2' => 'my-fancy-footer-2.png',
+];
+
+Inside of files_downloaded.mail.php for example
+
+<p>
+    You can access your files and view detailed download...
+</p>
+...
+<img src="cid:mylogo"/><img src="cid:footer2"/>
+...
+
+
 ### trackingevents_lifetime
 
 * __description:__ This is the number of days to retain tracking events in the database. 
@@ -1503,6 +1614,17 @@ User language detection is done in the following order:
 * __default:__ ""
 * __available:__ since version 2.8
 * __comment:__ See also can_view_statistics
+
+
+### read_only_mode
+* __description:__  Do not allow new transfers and guests to be created.
+* __mandatory:__ no
+* __type:__ boolean
+* __default:__ false
+* __available:__ since version 2.48
+* __comment:__ If you are performing a major upgrade you might like to retain an original FileSender installation in read only mode so users can continue to download existing files and redirect visitors to a new site for new uploads. This may be useful for upgrading between major FileSender releases such as the 2.x series to the 3.x series and also for change in infrastructure such as moving to different disk pools or storage back ends.
+
+
 
 
 ---
@@ -2173,6 +2295,23 @@ This is only for old, existing transfers which have no roundtriptoken set.
 
 
 
+### transfers_table_show_admin_full_path_to_each_file
+
+* __description:__ In the transfers table show the local path for the data for each file
+* __mandatory:__ no
+* __type:__ bool
+* __default:__ false
+* __available:__ since before version 2.46
+* __comment:__ A debugging option to allow an admin to see where the file content is stored for each
+               file in every transfer. This allows direct inspection of the disk without having to
+               work out the transfer id and uuid for a file in the case that an admin wishes to inspect 
+               the disk. This can be useful when storage_filesystem_per_day_buckets is enabled as there
+               will be subdirectories that are calculated from the timestamp in the uuid which may not
+               be immediately obvious to a human.
+
+
+
+
 
 ---
 
@@ -2198,6 +2337,15 @@ This is only for old, existing transfers which have no roundtriptoken set.
 * __available:__ since version 2.0
 * __comment:__ only useful when you enable upload_graph_bulk_display
 
+
+### upload_graph_use_cache_table
+
+* __description:__ Use a cache table to present the upload speed graphs
+* __mandatory:__ no
+* __type:__ boolean
+* __default:__ false
+* __available:__ since version 2.49
+* __comment:__ If you enable this option you will need to schedule scripts/task/update-upload-graph-table.php to execute periodically to update the cache table. This can be useful on very large installations.
 
 
 
@@ -2656,6 +2804,17 @@ This is only for old, existing transfers which have no roundtriptoken set.
 * __comment:__ 
 
 
+### auth_warn_session_expired
+
+* __description:__ When turned on the expire time for SAML sessions is sent to the browser so the user can be warned when the session has expired.
+* __mandatory:__ no
+* __type:__ boolean
+* __default:__ false
+* __available:__ since version 2.49
+* __comment:__ Note: enabling this setting will use a cookie X-FileSender-Session-Expires to support the functionality. 
+               The warning does not happen during an upload because the session may expire there and the upload can still complete.
+
+
 
 
 
@@ -3018,6 +3177,20 @@ $config['log_facilities'] =
 * __comment:__ Client identifier. Usually the default is fine, however when you have reverse proxy setups, you may need to change this to HTTP_CLIENT_IP, HTTP_X_REAL_IP, HTTP_X_FORWARDED_FOR, depending on your setup.
 
 
+### exception_skip_logging
+
+* __description:__ An array of exception class names to ignore during logging
+* __mandatory:__ no
+* __type:__ array of string
+* __default__: 
+* __available:__ v2.48
+* __comment:__ A list of php exception class names to not trigger logging messages. For example:
+	<pre><code>
+      $config['exception_skip_logging'] = array('AuthRemoteSignatureCheckFailedException');
+    </code></pre>
+
+
+
 ### logs_limit_messages_from_same_ip_address
 
 * __description:__ An option to limit how frequently transfers from the same IP address are logged
@@ -3092,6 +3265,18 @@ In this example, the application `appname` with secret `secret` has admin rights
 * __available:__ since version 2.0
 * __1.x name:__
 * __comment:__
+
+### disclose
+
+* __description:__ Some optional information can be disclosed by the FileSender instance. For example, the version number being run.
+* __mandatory:__ no
+* __type:__ boolean/array of strings
+* __default:__ - (disclose nothing)
+* __available:__ since before version 2.50
+* __1.x name:__
+* __comment:__ the parameter needs an array of strings.  Current options include: 'version'
+* __example:__ <span style="background-color:orange">$config['disclose'] = array( 'version' );</span>
+
 
 ### disclosed
 

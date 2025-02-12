@@ -134,12 +134,12 @@ try {
     
     // Ensure transaction id
     $transaction_id = '';
-    if(array_key_exists('transaction_id', $_GET))
-        $transaction_id = $_GET['transaction_id'];
+    if(array_key_exists('transaction_id', $_REQUEST))
+        $transaction_id = $_REQUEST['transaction_id'];
 
     if(!$transaction_id || !Utilities::isValidUID($transaction_id)) {
         $transaction_id = Utilities::generateUID();
-        header('Location: '.Utilities::http_build_query(array_merge($_GET, ['transaction_id' => $transaction_id]), 'download.php?'));
+        header('Location: '.Utilities::http_build_query(array_merge($_REQUEST, ['transaction_id' => $transaction_id]), 'download.php?'));
         exit;
     }
 
@@ -173,8 +173,9 @@ try {
         manageOptions($ret, $transfer, $recipient, $recently_downloaded);
     
 } catch (Exception $e) {
-    $storable = new StorableException($e);
-    $path = GUI::path() . '?s=exception&exception=' . $storable->serialize();
+    $sid = uniqid();
+    $_SESSION['exception_'.$sid] = $e;
+    $path = GUI::path() . '?s=exception&sid=' . $sid;
     header('Location: ' . $path);
 }
 
@@ -259,7 +260,7 @@ function downloadSingleFile($transfer, $recipient, $file_id, $recently_downloade
                             if ($end > 0) {
                                 $start = 0;
                             } else if ($end < 0) {
-                                $start = $file - size + $end;
+                                $start = $file->size + $end;
                                 $end = $file->size;
                             } else
                                 throw new DownloadInvalidRangeException($part); // end can't be O
