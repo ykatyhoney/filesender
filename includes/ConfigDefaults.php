@@ -69,6 +69,8 @@ $default = array(
     'auth_remote_user_autogenerate_secret' => false,
     'auth_remote_signature_algorithm' => 'sha1',
 
+    'auth_warn_session_expired' => false,
+
     'auth_remote_user_enabled' => false, //disables remote user auth
     
     'aup_default' => false,
@@ -167,6 +169,12 @@ $default = array(
     'storage_filesystem_external_script' => FILESENDER_BASE.'/scripts/StorageFilesystemExternal/external.py',
 
     'storage_filesystem_shred_path' => FILESENDER_BASE.'/shredfiles',
+    'storage_filesystem_per_day_buckets' => false,
+    'storage_filesystem_per_hour_buckets' => false,
+    'storage_filesystem_per_day_max_age_to_create_directory' => 7,
+    'storage_filesystem_per_day_min_days_to_clean_empty_directories' => -1,
+    'storage_filesystem_per_day_max_days_to_clean_empty_directories' => 150,
+    'transfers_table_show_admin_full_path_to_each_file' => false,
     
     'email_from' => 'sender',
     'email_return_path' => 'sender',
@@ -205,7 +213,7 @@ $default = array(
 
     'upload_graph_bulk_display' => true, 
     'upload_graph_bulk_min_file_size_to_consider' => 1024*1024*1024, 
-
+    'upload_graph_use_cache_table' => false,
 
     'support_email' => '',
 
@@ -239,6 +247,8 @@ $default = array(
     'cloud_s3_bucket' => '',
     'cloud_s3_use_daily_bucket' => false,
     'cloud_s3_bucket_prefix' => '',
+    'cloud_s3_bulk_delete' => false,
+    'cloud_s3_bulk_size' => 1000,
 
     'disable_directory_upload' => true,
     'directory_upload_button_enabled' => true,
@@ -345,7 +355,26 @@ $default = array(
     'download_verification_code_random_bytes_used' => 8,
 
     'download_show_download_links' => false,
-    
+
+    'read_only_mode' => false,
+
+    'validate_csrf_token_for_guests' => true,
+
+    'template_config_values_that_can_be_read_in_templates' => array(
+        'default_guest_days_valid',
+        'default_transfer_days_valid',
+        'encryption_password_text_only_min_password_length',
+        'guest_reminder_limit_per_day',
+        'mac_unzip_link',
+        'mac_unzip_name',
+        'max_guest_days_valid',
+        'max_transfer_days_valid',
+        'max_transfer_files',
+        'max_transfer_recipients',
+        'site_name',
+        'site_url',
+    ),
+
     'transfer_options' => array(
         'email_me_copies' => array(
             'available' => true,

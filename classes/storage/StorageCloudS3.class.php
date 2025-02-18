@@ -53,17 +53,18 @@ class StorageCloudS3 extends StorageFilesystem
         if (self::$client) {
             return self::$client;
         }
-        
+
         self::$client = S3Client::factory(array(
             'region'   => Config::get('cloud_s3_region'),
             'version'  => Config::get('cloud_s3_version'),
             'endpoint' => Config::get('cloud_s3_endpoint'),
             'use_path_style_endpoint' => Config::get('cloud_s3_use_path_style_endpoint'),
             'credentials' => array(
-                'key'    => Config::get('cloud_s3_key'),
-                'secret' => Config::get('cloud_s3_secret'),
+                'key'    => ConfigPrivate::get('cloud_s3_key'),
+                'secret' => ConfigPrivate::get('cloud_s3_secret'),
             )
         ));
+        
         return self::$client;
     }
     
@@ -142,6 +143,10 @@ class StorageCloudS3 extends StorageFilesystem
         } catch (ServiceException $e) {
             $msg = 'S3: readChunk() Can not read to object_name: ' . $object_name . ' offset ' . $offset;
             Logger::info($msg);
+            if (is_a($e, 'ConfigMissingParameterException')) {
+                Logger::error("NOTE: MISSING PARAMETER IN CONFIG FILE");
+                $msg .= "  NOTE: MISSING PARAMETER IN CONFIG FILE";
+            }
             throw new StorageFilesystemCannotReadException($msg);
         }
 
@@ -189,6 +194,10 @@ class StorageCloudS3 extends StorageFilesystem
         } catch (Exception $e) {
             $msg = 'S3: writeChunk() Can not write to object_name: ' . $object_name . ' offset ' . $offset;
             Logger::info($msg);
+            if (is_a($e, 'ConfigMissingParameterException')) {
+                Logger::error("NOTE: MISSING PARAMETER IN CONFIG FILE");
+                $msg .= "  NOTE: MISSING PARAMETER IN CONFIG FILE";
+            }
             throw new StorageFilesystemCannotWriteException($msg);
         }
     }
@@ -218,6 +227,10 @@ class StorageCloudS3 extends StorageFilesystem
         $offset = 0;
         $bucket_name = self::getBucketName( $file );
         $object_name = self::getObjectName( $file, $offset );
+	$bulk_delete = Config::get('cloud_s3_bulk_delete');
+	$bulk_size = Config::get('cloud_s3_bulk_size');
+
+	Logger::debug('CloudS3 deleteFile(), file_path: ' . $file_path . ' bucket_name: ' . $bucket_name . ' object_name: ' . $object_name . ' bulk: ' . $bulk_delete . '/' . $bulk_size);
         
         try {
             $client = self::getClient();
@@ -228,11 +241,44 @@ class StorageCloudS3 extends StorageFilesystem
                 $objects = $client->getIterator('ListObjects', array('Bucket' => $bucket_name, 'Prefix' => $file->uid));    
             }
 
-            foreach ($objects as $object) {
-                $result = $client->deleteObject(array(
-                    'Bucket' => $bucket_name,
-                    'Key'    => $object['Key']
-                ));
+	    if( $bulk_delete ) {
+
+	        // Build bulk request the way AWS client wants it
+                foreach ($objects as $object) {
+                    $delete_queue[] = [
+                        'Key' => $object['Key'],
+                    ];
+                }
+
+		if( $delete_queue ) {
+
+		    // Create batches of requested batchsize
+                    $chunked_queue = array_chunk($delete_queue, $bulk_size);
+                    Logger::debug('bulk has ' . count($chunked_queue) . ' requests');
+
+
+                    // Perform actual chunk removal
+                    foreach($chunked_queue as $delete_batch) {
+
+                        Logger::debug('bulk deleting ' . count($delete_batch) . ' chunks');
+                        $result = $client->deleteObjects([
+                           'Bucket' => $bucket_name,
+                           'Delete' => [
+                               'Objects' => $delete_batch,
+                           ],
+                        ]);
+                    }
+		}
+
+            } else {
+
+		Logger::debug('Executing non-bulk delete');
+                foreach ($objects as $object) {
+                    $result = $client->deleteObject(array(
+                        'Bucket' => $bucket_name,
+                        'Key'    => $object['Key']
+                    ));
+                }
             }
             
             if( !self::usingCustomBucketName( $file ) ) {
